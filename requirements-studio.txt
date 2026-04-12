@@ -1,0 +1,23 @@
+# Video Production Studio — additional dependencies
+# Install with: pip install -r requirements-studio.txt
+
+# ── Studio service ────────────────────────────────────────────────────────────
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+
+# ── Local TTS (pyttsx3) ───────────────────────────────────────────────────────
+# Linux also needs: sudo apt-get install espeak espeak-data libespeak1
+pyttsx3>=2.90
+
+# ── Local image generation (Stable Diffusion) ─────────────────────────────────
+# Requires ~4 GB disk for the default model (runwayml/stable-diffusion-v1-5).
+# GPU (CUDA / MPS) greatly speeds up generation.
+diffusers>=0.27.0
+transformers>=4.38.0
+accelerate>=0.27.0
+# torch is listed separately; install the GPU variant from pytorch.org if needed:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121
+torch>=2.2.0
+
+# ── Already included in the base pipeline ─────────────────────────────────────
+# pillow, moviepy, numpy, requests, pydantic, pydantic-settings, anthropic
