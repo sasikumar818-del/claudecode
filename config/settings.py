@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     # FFmpeg
     ffmpeg_path: str = "ffmpeg"
 
+    # Plugins
+    plugin_dir: Path = Path("plugins")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         secrets_strip_whitespace=True,

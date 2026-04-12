@@ -27,6 +27,7 @@ from agents.voiceover import VoiceoverAgent
 from config.settings import Settings, get_settings
 from models.production import ProductionPackage
 from models.script import ScriptRequest
+from plugins.registry import PluginRegistry
 
 
 class StepStatus(str, Enum):
@@ -116,7 +117,11 @@ class SupervisorAgent:
 
     MAX_RETRIES = 2
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        registry: Optional[PluginRegistry] = None,
+    ) -> None:
         self.settings = settings
         self.client = anthropic.Anthropic(
             api_key=settings.anthropic_api_key.get_secret_value()
@@ -125,13 +130,21 @@ class SupervisorAgent:
         self.final_dir = settings.output_subdirs["final"]
         self.final_dir.mkdir(parents=True, exist_ok=True)
 
-        # Specialist agents
+        # Specialist agents (built-in fallbacks)
         self.script_writer = ScriptWriterAgent(settings)
         self.storyboard = StoryboardAgent(settings)
         self.voiceover = VoiceoverAgent(settings)
         self.image_generator = ImageGeneratorAgent(settings)
         self.video_assembler = VideoAssemblerAgent(settings)
         self.review = ReviewAgent(settings)
+
+        # Plugin registry — initialise plugins
+        self._registry = registry if registry is not None else PluginRegistry()
+        for plugin in self._registry.all_plugins():
+            try:
+                plugin.setup(settings)
+            except Exception as exc:
+                print(f"  [Supervisor] Plugin '{plugin.name}' setup failed: {exc}")
 
         self._log: Optional[SupervisorLog] = None
 
@@ -152,77 +165,104 @@ class SupervisorAgent:
 
         package: Optional[ProductionPackage] = None
 
-        # ── Step 1: Script Writer ──────────────────────────────────────
-        script = self._run_step(
-            name="Script Writer",
-            fn=lambda: self.script_writer.run(request),
-            summary_fn=lambda r: (
-                f"Generated script titled '{r.title}' with {len(r.sections)} sections "
-                f"({r.total_estimated_duration:.0f}s estimated)."
-            ),
-        )
+        try:
+            # ── Step 1: Script Writer ──────────────────────────────────────
+            script = self._run_step(
+                name="Script Writer",
+                fn=lambda: self._resolve_agent("Script Writer", self.script_writer).run(request),
+                summary_fn=lambda r: (
+                    f"Generated script titled '{r.title}' with {len(r.sections)} sections "
+                    f"({r.total_estimated_duration:.0f}s estimated)."
+                ),
+                input_data=request,
+            )
 
-        # ── Step 2: Storyboard ─────────────────────────────────────────
-        storyboard = self._run_step(
-            name="Storyboard",
-            fn=lambda: self.storyboard.run(script),
-            summary_fn=lambda r: (
-                f"Created storyboard with {len(r.scenes)} scenes."
-            ),
-        )
+            # ── Step 2: Storyboard ─────────────────────────────────────────
+            storyboard = self._run_step(
+                name="Storyboard",
+                fn=lambda: self._resolve_agent("Storyboard", self.storyboard).run(script),
+                summary_fn=lambda r: (
+                    f"Created storyboard with {len(r.scenes)} scenes."
+                ),
+                input_data=script,
+            )
 
-        # ── Step 3: Voiceover ──────────────────────────────────────────
-        audio_assets = self._run_step(
-            name="Voiceover",
-            fn=lambda: self.voiceover.run(storyboard),
-            summary_fn=lambda r: (
-                f"Generated {len(r)} audio files, "
-                f"total {sum(a.duration_seconds for a in r):.1f}s."
-            ),
-        )
+            # ── Step 3: Voiceover ──────────────────────────────────────────
+            audio_assets = self._run_step(
+                name="Voiceover",
+                fn=lambda: self._resolve_agent("Voiceover", self.voiceover).run(storyboard),
+                summary_fn=lambda r: (
+                    f"Generated {len(r)} audio files, "
+                    f"total {sum(a.duration_seconds for a in r):.1f}s."
+                ),
+                input_data=storyboard,
+            )
 
-        # ── Step 4: Image Generator ────────────────────────────────────
-        image_assets = self._run_step(
-            name="Image Generator",
-            fn=lambda: self.image_generator.run(storyboard),
-            summary_fn=lambda r: (
-                f"Generated {len(r)} images using backend '{r[0].backend}'."
-            ),
-        )
+            # ── Step 4: Image Generator ────────────────────────────────────
+            image_assets = self._run_step(
+                name="Image Generator",
+                fn=lambda: self._resolve_agent("Image Generator", self.image_generator).run(storyboard),
+                summary_fn=lambda r: (
+                    f"Generated {len(r)} images using backend '{r[0].backend}'."
+                ),
+                input_data=storyboard,
+            )
 
-        # ── Step 5: Build Production Package ──────────────────────────
-        package = ProductionPackage(
-            storyboard=storyboard,
-            audio_assets=audio_assets,
-            image_assets=image_assets,
-            created_at=datetime.utcnow(),
-        )
-        self._log.pipeline_run_id = package.pipeline_run_id
+            # ── Step 5: Build Production Package ──────────────────────────
+            package = ProductionPackage(
+                storyboard=storyboard,
+                audio_assets=audio_assets,
+                image_assets=image_assets,
+                created_at=datetime.utcnow(),
+            )
+            self._log.pipeline_run_id = package.pipeline_run_id
 
-        # ── Step 6: Video Assembler ────────────────────────────────────
-        package = self._run_step(
-            name="Video Assembler",
-            fn=lambda: self.video_assembler.run(package),
-            summary_fn=lambda r: (
-                f"Assembled {len(r.video_clips)} clips into final video: "
-                f"{r.final_video_path}"
-            ),
-        )
+            # ── Step 6: Video Assembler ────────────────────────────────────
+            package = self._run_step(
+                name="Video Assembler",
+                fn=lambda: self._resolve_agent("Video Assembler", self.video_assembler).run(package),
+                summary_fn=lambda r: (
+                    f"Assembled {len(r.video_clips)} clips into final video: "
+                    f"{r.final_video_path}"
+                ),
+                input_data=package,
+            )
 
-        # ── Step 7: Review ─────────────────────────────────────────────
-        package = self._run_step(
-            name="Review",
-            fn=lambda: self.review.run(package),
-            summary_fn=lambda r: (
-                f"Preview created: {r.preview_video_path}"
-            ),
-        )
+            # ── Step 7: Review ─────────────────────────────────────────────
+            package = self._run_step(
+                name="Review",
+                fn=lambda: self._resolve_agent("Review", self.review).run(package),
+                summary_fn=lambda r: (
+                    f"Preview created: {r.preview_video_path}"
+                ),
+                input_data=package,
+            )
 
-        self._log.finished_at = datetime.utcnow()
-        self._log.final_status = StepStatus.SUCCESS
-        self._save_log()
-        self._print_summary(package)
-        return package
+            self._log.finished_at = datetime.utcnow()
+            self._log.final_status = StepStatus.SUCCESS
+            self._save_log()
+            self._print_summary(package)
+            return package
+        finally:
+            self._teardown_plugins()
+
+    # ------------------------------------------------------------------
+    # Plugin helpers
+    # ------------------------------------------------------------------
+
+    def _resolve_agent(self, step_name: str, fallback: Any) -> Any:
+        """Return a plugin override for *step_name* if one is registered,
+        otherwise return *fallback* (the built-in agent).
+        """
+        override = self._registry.get_agent_override(step_name)
+        return override if override is not None else fallback
+
+    def _teardown_plugins(self) -> None:
+        for plugin in self._registry.all_plugins():
+            try:
+                plugin.teardown()
+            except Exception as exc:
+                print(f"  [Supervisor] Plugin '{plugin.name}' teardown failed: {exc}")
 
     # ------------------------------------------------------------------
     # Step runner with retry + supervisor validation
@@ -233,9 +273,13 @@ class SupervisorAgent:
         name: str,
         fn,
         summary_fn,
+        input_data: Any = None,
     ) -> Any:
         record = StepRecord(name=name)
         self._log.steps.append(record)
+
+        # Fire on_step_start hooks before the first attempt
+        self._fire_hooks_start(name, input_data)
 
         for attempt in range(1, self.MAX_RETRIES + 2):
             record.attempt = attempt
@@ -255,11 +299,13 @@ class SupervisorAgent:
                 if decision == "proceed":
                     record.status = StepStatus.SUCCESS
                     self._print_step_result(name, StepStatus.SUCCESS, reason, record.duration_seconds())
+                    self._fire_hooks_end(name, result, record.duration_seconds())
                     return result
 
                 if decision == "skip":
                     record.status = StepStatus.SKIPPED
                     self._print_step_result(name, StepStatus.SKIPPED, reason, record.duration_seconds())
+                    self._fire_hooks_end(name, result, record.duration_seconds())
                     return result
 
                 if decision == "retry" and attempt <= self.MAX_RETRIES:
@@ -302,6 +348,24 @@ class SupervisorAgent:
 
         # Should not reach here
         raise RuntimeError(f"Step '{name}' exhausted all retries.")
+
+    # ------------------------------------------------------------------
+    # Hook helpers
+    # ------------------------------------------------------------------
+
+    def _fire_hooks_start(self, step_name: str, input_data: Any) -> None:
+        for plugin in self._registry.all_plugins():
+            try:
+                plugin.on_step_start(step_name, input_data)
+            except Exception as exc:
+                print(f"  [Supervisor] Plugin '{plugin.name}' on_step_start raised: {exc}")
+
+    def _fire_hooks_end(self, step_name: str, result: Any, duration: Optional[float]) -> None:
+        for plugin in self._registry.all_plugins():
+            try:
+                plugin.on_step_end(step_name, result, duration or 0.0)
+            except Exception as exc:
+                print(f"  [Supervisor] Plugin '{plugin.name}' on_step_end raised: {exc}")
 
     # ------------------------------------------------------------------
     # Supervisor LLM call
