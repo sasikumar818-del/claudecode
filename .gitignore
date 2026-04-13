@@ -26,3 +26,6 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+mcp-video/.venv/
+mcp-video/node_modules/
+mcp-video-gen/.venv/
