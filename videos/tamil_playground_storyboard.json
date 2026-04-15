@@ -1,0 +1,77 @@
+{
+  "title": "குழந்தைகள் விளையாட்டு பூங்காவில் மகிழ்ச்சி நாள்",
+  "language": "ta",
+  "total_duration_seconds": 600,
+  "scenes": [
+    {
+      "scene_id": 1,
+      "section_id": 1,
+      "shot_type": "wide",
+      "visual_description": "Pixar-style cinematic animation, warm Tamil neighborhood at bright morning, rows of colourful houses with jasmine garlands on doors, golden sunrise light casting long shadows, a group of Tamil children aged 5-10 in vibrant kurtas and skirts running joyfully along a wide street toward distant playground gates, their backpacks bouncing, expressive wide-smiling faces, lush green trees lining the road, cheerful birds in flight, cinematic depth-of-field, 1920x1080 widescreen",
+      "camera_direction": "Slow push-in wide establishing shot at ground level, camera rises gently to reveal playground gates in the distance",
+      "on_screen_text": "இன்று ஒரு மகிழ்ச்சியான நாள்!",
+      "narration_text": "இன்று குழந்தைகள் அனைவருக்கும் ஒரு மகிழ்ச்சியான நாள். காலை வெயிலில் தெரு முழுவதும் குழந்தைகளின் சிரிப்பும் ஓட்டமும் நிறைந்தது. விளையாட்டு பூங்கா நோக்கி அனைவரும் ஓடினார்கள்.",
+      "duration_seconds": 60
+    },
+    {
+      "scene_id": 2,
+      "section_id": 2,
+      "shot_type": "medium",
+      "visual_description": "Pixar-style cinematic animation, ornate colorful playground gates swinging open with a magical golden glow, dozens of bright helium balloons in red, yellow, blue, green tied to the gate posts, cheerful Tamil children rushing through the gates with arms wide open, parents waving from outside, confetti drifting down, a Tamil caretaker in uniform welcoming them with a warm smile, lush playground visible beyond the gates with slides, swings and merry-go-round gleaming in sunlight, 1920x1080 widescreen",
+      "camera_direction": "Medium shot at gate level, dolly back as gates open wide, children flood the frame",
+      "on_screen_text": "வரவேற்கிறோம்!",
+      "narration_text": "விளையாட்டு பூங்காவின் கதவுகள் திறந்தன. வண்ணமயமான பலூன்களும் இனிமையான இசையும் குழந்தைகளை வரவேற்றன. அனைவரின் முகத்திலும் பேரானந்தம் ததும்பியது.",
+      "duration_seconds": 60
+    },
+    {
+      "scene_id": 3,
+      "section_id": 3,
+      "shot_type": "close_up",
+      "visual_description": "Pixar-style cinematic animation, multiple split-frame vignettes of Tamil children playing: a girl in a yellow dress sliding down a tall spiral slide with hands raised in delight, two boys pumping high on swings against a clear blue sky, a group of kids spinning on a bright red merry-go-round laughing, close-up of gleeful faces with wind-blown hair, warm dappled light through trees, laughter lines on faces, dynamic motion blur on swings, vivid saturated colors, 1920x1080 widescreen",
+      "camera_direction": "Rapid intercutting close-ups and medium shots following the children's movement, slow-motion burst captures peak joy",
+      "on_screen_text": "விளையாட்டு மகிழ்ச்சி!",
+      "narration_text": "சறுக்கு பலகையில் ஒருவர் இறங்கினார், ஊஞ்சலில் மற்றொருவர் உயரே பறந்தார். சுழலும் வட்டத்தில் குழந்தைகள் கூச்சலிட்டனர். விளையாட்டு தான் மகிழ்ச்சியின் மூலாதாரம். சிரிப்பும் ஆர்ப்பாட்டமும் பூங்காவை நிரப்பியது.",
+      "duration_seconds": 120
+    },
+    {
+      "scene_id": 4,
+      "section_id": 4,
+      "shot_type": "aerial",
+      "visual_description": "Pixar-style cinematic aerial and dynamic ground shots, Tamil children playing team games in a sun-drenched open field: hide-and-seek among colorful playground structures with children peeking and giggling, an energetic ball game with two teams in matching colored bibs, a tug-of-war with kids straining and laughing, cooperative tower-building with foam blocks, dynamic camera angles showing teamwork and camaraderie, expressive emotions of concentration and joy, 1920x1080 widescreen",
+      "camera_direction": "Aerial drone shot swooping down into action, then ground-level handheld energy following the play",
+      "on_screen_text": "குழு விளையாட்டு!",
+      "narration_text": "ஒளி மறைவு விளையாட்டில் குழந்தைகள் ஒளிந்து கொண்டனர். பந்து விளையாட்டில் இரு அணிகள் மோதின. இணைந்து விளையாடும்போது நட்பு வலுக்கிறது. ஒற்றுமையில் உள்ளது உண்மையான மகிழ்ச்சி.",
+      "duration_seconds": 120
+    },
+    {
+      "scene_id": 5,
+      "section_id": 5,
+      "shot_type": "medium",
+      "visual_description": "Pixar-style cinematic animation, a large shady banyan tree in the playground, Tamil parents spreading colourful picnic mats beneath it, children sitting cross-legged in a circle, parents handing out cut watermelon slices, mango pieces, small banana bunches, juice boxes with straws, children sharing snacks with each other laughing, close-up of small hands trading fruit, warm golden afternoon light filtering through leaves, a few sparrows pecking at crumbs, peaceful happy atmosphere, 1920x1080 widescreen",
+      "camera_direction": "Gentle medium shot slowly panning the picnic circle, occasional close-ups of sharing gestures and smiling faces",
+      "on_screen_text": "சேர்ந்து சாப்பிடுவோம்!",
+      "narration_text": "விளையாட்டுக்கு பிறகு பசி எடுத்தது. மரத்தடியில் அனைவரும் ஒன்று கூடினோம். பழங்களும் பானங்களும் பகிர்ந்து கொண்டோம். சேர்ந்து சாப்பிடும்போது உணவும் இனிக்கிறது.",
+      "duration_seconds": 60
+    },
+    {
+      "scene_id": 6,
+      "section_id": 6,
+      "shot_type": "close_up",
+      "visual_description": "Pixar-style cinematic animation, creative corner in the playground: Tamil children drawing vibrant murals on the ground with oversized colourful chalk sticks, another group carefully building sandcastles with flags on top, a storytelling circle where a child stands dramatically narrating with expressive hand gestures while others listen wide-eyed, close-ups of chalk-dusted hands, intricately sculpted sand towers, imaginative chalk drawings of animals and houses, warm soft afternoon light, 1920x1080 widescreen",
+      "camera_direction": "Close-up details of creative work interspersed with medium shots of the storytelling circle, low angle looking up at the storyteller",
+      "on_screen_text": "கற்பனையின் உலகம்!",
+      "narration_text": "வண்ண சாக்பீஸால் தரையில் கோலம் போட்டனர். மணலில் அரண்மனை கட்டினார்கள். கதை சொல்லும் வட்டத்தில் அனைவரும் கவனமாக கேட்டனர். சிறு கற்பனை, பெரிய மகிழ்ச்சி.",
+      "duration_seconds": 60
+    },
+    {
+      "scene_id": 7,
+      "section_id": 7,
+      "shot_type": "wide",
+      "visual_description": "Pixar-style cinematic grand finale animation, all Tamil children standing in a large circle in the golden late-afternoon light, joining hands and singing together with glowing happy faces, then releasing dozens of colorful helium balloons into a brilliant sunset sky of orange and pink, balloons drifting upward in slow motion past wispy clouds, parents watching with tears of joy, camera pulling back majestically to reveal the whole playground from above, the children tiny against the vast beautiful sky, end title card appearing in Tamil script, cinematic lens flare, 1920x1080 widescreen",
+      "camera_direction": "Start with ground-level circle shot, crane up as balloons release, epic aerial pull-back to reveal full scene against sunset sky",
+      "on_screen_text": "இது தான் குழந்தைகளின் உலகம்!",
+      "narration_text": "மாலை வெயிலில் அனைவரும் கை கோர்த்தனர். ஒரு குழந்தை பாடல் பாட தொடங்கியது, அனைவரும் சேர்ந்து பாடினோம். வண்ண பலூன்களை வானில் விட்டோம், அவை மேகங்களை தொட்டன. இது தான் குழந்தைகளின் மகிழ்ச்சி உலகம் — விளையாட்டு, நட்பு, சிரிப்பு!",
+      "duration_seconds": 120
+    }
+  ]
+}

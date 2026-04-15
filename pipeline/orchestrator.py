@@ -26,11 +26,14 @@ def run_pipeline(
     duration: int = 60,
     tone: str = "educational",
     language: str = "en",
+    storyboard_path=None,
 ) -> ProductionPackage:
+    from pathlib import Path
     request = ScriptRequest(
         topic=topic,
         target_duration_seconds=duration,
         tone=tone,
         language=language,
+        storyboard_path=Path(storyboard_path) if storyboard_path else None,
     )
     return Pipeline(get_settings()).run(request)

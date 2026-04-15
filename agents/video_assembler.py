@@ -20,6 +20,8 @@ class VideoAssemblerAgent:
         self.runway_api_base = settings.runway_api_base
         self.clips_dir = settings.output_subdirs["clips"]
         self.final_dir = settings.output_subdirs["final"]
+        self.video_width = settings.video_width
+        self.video_height = settings.video_height
         self.clips_dir.mkdir(parents=True, exist_ok=True)
         self.final_dir.mkdir(parents=True, exist_ok=True)
 
@@ -59,9 +61,11 @@ class VideoAssemblerAgent:
 
     def _animate_with_runway(self, image: ImageAsset, audio: AudioAsset) -> Path:
         import requests
+        from moviepy import VideoFileClip
 
         clip_path = self.clips_dir / f"scene_{image.scene_id:03d}_runway.mp4"
-        duration = min(10, max(1, round(audio.duration_seconds)))
+        # Runway max is 10s; we request 10s and loop the clip to match full audio duration
+        runway_duration = min(10, max(1, round(audio.duration_seconds)))
         image_b64 = base64.b64encode(image.file_path.read_bytes()).decode()
 
         headers = {
@@ -72,8 +76,8 @@ class VideoAssemblerAgent:
         payload = {
             "model": "gen3a_turbo",
             "promptImage": f"data:image/png;base64,{image_b64}",
-            "duration": duration,
-            "ratio": "1280:720",
+            "duration": runway_duration,
+            "ratio": f"{self.video_width}:{self.video_height}",
         }
 
         resp = requests.post(
@@ -86,6 +90,7 @@ class VideoAssemblerAgent:
         task_id = resp.json()["id"]
 
         # Poll until complete
+        raw_path = self.clips_dir / f"scene_{image.scene_id:03d}_runway_raw.mp4"
         for _ in range(60):  # max 10 min
             time.sleep(10)
             poll = requests.get(
@@ -98,19 +103,39 @@ class VideoAssemblerAgent:
             if status == "SUCCEEDED":
                 video_url = poll.json()["output"][0]
                 video_bytes = requests.get(video_url, timeout=120).content
-                clip_path.write_bytes(video_bytes)
-                print(f"  [Assembler] Runway clip saved → {clip_path}")
-                return clip_path
+                raw_path.write_bytes(video_bytes)
+                print(f"  [Assembler] Runway raw clip downloaded → {raw_path}")
+                break
             if status in ("FAILED", "CANCELLED"):
                 raise RuntimeError(f"Runway task {task_id} failed: {status}")
+        else:
+            raise TimeoutError(f"Runway task {task_id} timed out after 10 minutes")
 
-        raise TimeoutError(f"Runway task {task_id} timed out after 10 minutes")
+        # Loop the Runway clip to match full audio duration, then write final clip
+        animated = VideoFileClip(str(raw_path))
+        if audio.duration_seconds > runway_duration:
+            animated = animated.loop(duration=audio.duration_seconds)
+        animated.write_videofile(
+            str(clip_path),
+            fps=24,
+            codec="libx264",
+            audio_codec="aac",
+            ffmpeg_params=["-crf", "18", "-preset", "slow"],
+            logger=None,
+        )
+        animated.close()
+        raw_path.unlink(missing_ok=True)
+        print(f"  [Assembler] Runway clip saved → {clip_path}")
+        return clip_path
 
     def _image_to_static_clip(self, image: ImageAsset, audio: AudioAsset) -> Path:
         from moviepy import AudioFileClip, ImageClip
 
         clip_path = self.clips_dir / f"scene_{image.scene_id:03d}_static.mp4"
-        img_clip = ImageClip(str(image.file_path), duration=audio.duration_seconds)
+        img_clip = (
+            ImageClip(str(image.file_path), duration=audio.duration_seconds)
+            .resized((self.video_width, self.video_height))
+        )
         audio_clip = AudioFileClip(str(audio.file_path))
         final = img_clip.with_audio(audio_clip)
         final.write_videofile(
@@ -118,7 +143,7 @@ class VideoAssemblerAgent:
             fps=24,
             codec="libx264",
             audio_codec="aac",
-            ffmpeg_params=["-crf", "18"],
+            ffmpeg_params=["-crf", "18", "-preset", "slow"],
             logger=None,
         )
         final.close()
@@ -170,6 +195,7 @@ class VideoAssemblerAgent:
             fps=24,
             codec="libx264",
             audio_codec="aac",
+            ffmpeg_params=["-crf", "18", "-preset", "slow"],
             logger=None,
         )
         final.close()

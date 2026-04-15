@@ -27,6 +27,7 @@ from agents.voiceover import VoiceoverAgent
 from config.settings import Settings, get_settings
 from models.production import ProductionPackage
 from models.script import ScriptRequest
+from models.storyboard import Storyboard
 
 
 class StepStatus(str, Enum):
@@ -152,24 +153,31 @@ class SupervisorAgent:
 
         package: Optional[ProductionPackage] = None
 
-        # ── Step 1: Script Writer ──────────────────────────────────────
-        script = self._run_step(
-            name="Script Writer",
-            fn=lambda: self.script_writer.run(request),
-            summary_fn=lambda r: (
-                f"Generated script titled '{r.title}' with {len(r.sections)} sections "
-                f"({r.total_estimated_duration:.0f}s estimated)."
-            ),
-        )
+        # ── Steps 1 & 2: Script + Storyboard (or bypass) ──────────────
+        if request.storyboard_path and request.storyboard_path.exists():
+            # Bypass Claude script/storyboard generation — load pre-defined JSON
+            print(f"\n  [Supervisor] Loading pre-defined storyboard: {request.storyboard_path}")
+            storyboard: Storyboard = Storyboard.from_json_file(request.storyboard_path)
+            print(f"  [Supervisor] Loaded {len(storyboard.scenes)} scenes (lang={storyboard.language})")
+        else:
+            # ── Step 1: Script Writer ──────────────────────────────────
+            script = self._run_step(
+                name="Script Writer",
+                fn=lambda: self.script_writer.run(request),
+                summary_fn=lambda r: (
+                    f"Generated script titled '{r.title}' with {len(r.sections)} sections "
+                    f"({r.total_estimated_duration:.0f}s estimated)."
+                ),
+            )
 
-        # ── Step 2: Storyboard ─────────────────────────────────────────
-        storyboard = self._run_step(
-            name="Storyboard",
-            fn=lambda: self.storyboard.run(script),
-            summary_fn=lambda r: (
-                f"Created storyboard with {len(r.scenes)} scenes."
-            ),
-        )
+            # ── Step 2: Storyboard ─────────────────────────────────────
+            storyboard = self._run_step(
+                name="Storyboard",
+                fn=lambda: self.storyboard.run(script),
+                summary_fn=lambda r: (
+                    f"Created storyboard with {len(r.scenes)} scenes."
+                ),
+            )
 
         # ── Step 3: Voiceover ──────────────────────────────────────────
         audio_assets = self._run_step(
