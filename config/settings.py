@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     video_backend: Literal["runway", "none"] = "runway"
 
     # Claude model
-    claude_model: str = "claude-opus-4-5"
+    claude_model: str = "claude-opus-4-6"
 
     # Output
     output_dir: Path = Path("output")
