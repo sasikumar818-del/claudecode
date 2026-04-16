@@ -9,16 +9,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # Anthropic (Claude)
-    anthropic_api_key: SecretStr
+    # Anthropic (Claude) — optional when running in fully local mode
+    anthropic_api_key: Optional[SecretStr] = None
 
-    # ElevenLabs TTS
-    elevenlabs_api_key: SecretStr
+    # ElevenLabs TTS — optional when using local TTS
+    elevenlabs_api_key: Optional[SecretStr] = None
     elevenlabs_voice_id: str = "21m00Tcm4TlvDq8ikWAM"
     elevenlabs_model_id: str = "eleven_multilingual_v2"
 
-    # OpenAI (DALL-E 3)
-    openai_api_key: SecretStr
+    # OpenAI (DALL-E 3) — optional when using local image gen
+    openai_api_key: Optional[SecretStr] = None
 
     # Stability AI (alternative image backend)
     stability_api_key: Optional[SecretStr] = None
@@ -40,6 +40,44 @@ class Settings(BaseSettings):
 
     # FFmpeg
     ffmpeg_path: str = "ffmpeg"
+
+    # Plugins
+    plugin_dir: Path = Path("plugins")
+
+    # ── Studio service ────────────────────────────────────────────────────────
+    studio_host: str = "0.0.0.0"
+    studio_port: int = 8000
+    studio_db_path: Path = Path("studio.db")
+
+    # ── Local plugin flags (set to true to use local processing) ─────────────
+    use_local_llm: bool = False    # Ollama replaces Anthropic script writer
+    use_local_tts: bool = False    # pyttsx3 replaces ElevenLabs voiceover
+    use_local_image: bool = False  # Stable Diffusion replaces DALL-E
+    use_local_video: bool = False  # Ken Burns effect replaces Runway
+
+    # ── Ollama (local LLM) ────────────────────────────────────────────────────
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3.2"
+
+    # ── Local TTS ─────────────────────────────────────────────────────────────
+    local_tts_rate: int = 150      # words per minute (pyttsx3)
+
+    # ── Stable Diffusion ──────────────────────────────────────────────────────
+    sd_model_id: str = "runwayml/stable-diffusion-v1-5"
+    sd_device: str = "auto"        # "cpu" | "cuda" | "mps" | "auto"
+    sd_steps: int = 20
+    sd_guidance_scale: float = 7.5
+
+    # ── Gemini (cloud LLM alternative to Ollama / Anthropic) ─────────────────
+    use_gemini_llm: bool = False    # Gemini replaces Anthropic script writer
+    gemini_api_key: Optional[SecretStr] = None
+    gemini_model: str = "gemini-2.0-flash"
+
+    # ── ImaginePro (cloud image + video generation) ───────────────────────────
+    use_imaginepro_image: bool = False  # ImaginePro replaces image generator
+    use_imaginepro_video: bool = False  # ImaginePro replaces video assembler
+    imaginepro_api_key: Optional[SecretStr] = None
+    imaginepro_api_base: str = "https://api.imaginepro.ai/api/v1"
 
     model_config = SettingsConfigDict(
         env_file=".env",
