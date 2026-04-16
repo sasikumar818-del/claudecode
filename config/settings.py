@@ -9,28 +9,47 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # Anthropic (Claude)
+    # Anthropic (Claude) — required for supervisor decisions
     anthropic_api_key: SecretStr
 
-    # ElevenLabs TTS
-    elevenlabs_api_key: SecretStr
-    elevenlabs_voice_id: str = "21m00Tcm4TlvDq8ikWAM"  # default: Rachel (English)
-    elevenlabs_voice_id_ta: str = ""                      # Tamil voice (set in .env)
+    # ── TTS backend ──────────────────────────────────────────────────────
+    # "espeak"     — espeak-ng offline TTS (default, free, no internet needed)
+    #                Install: sudo apt install espeak-ng ffmpeg
+    # "gtts"       — Google TTS (free, needs internet, no key)
+    # "edge-tts"   — Microsoft Edge TTS (free, needs internet, high quality)
+    # "elevenlabs" — ElevenLabs paid API
+    tts_backend: Literal["espeak", "gtts", "edge-tts", "elevenlabs"] = "espeak"
+
+    # ElevenLabs (only needed when TTS_BACKEND=elevenlabs)
+    elevenlabs_api_key: Optional[SecretStr] = None
+    elevenlabs_voice_id: str = "21m00Tcm4TlvDq8ikWAM"  # Rachel (English)
+    elevenlabs_voice_id_ta: str = ""                      # Tamil voice
     elevenlabs_model_id: str = "eleven_multilingual_v2"
 
-    # OpenAI (DALL-E 3)
-    openai_api_key: SecretStr
+    # ── Image backend ─────────────────────────────────────────────────────
+    # "huggingface" — HuggingFace Inference API, free (default)
+    # "dalle"       — OpenAI DALL-E 3 (paid)
+    # "stability"   — Stability AI (paid)
+    image_backend: Literal["huggingface", "dalle", "stability"] = "huggingface"
 
-    # Stability AI (alternative image backend)
+    # HuggingFace (free; token optional but increases rate limits)
+    huggingface_api_key: str = ""
+    huggingface_image_model: str = "black-forest-labs/FLUX.1-schnell"
+
+    # OpenAI DALL-E 3 (only needed when IMAGE_BACKEND=dalle)
+    openai_api_key: Optional[SecretStr] = None
+
+    # Stability AI (only needed when IMAGE_BACKEND=stability)
     stability_api_key: Optional[SecretStr] = None
 
-    # Runway (video animation)
+    # ── Video backend ─────────────────────────────────────────────────────
+    # "none"   — static images + MoviePy only (free, default)
+    # "runway" — Runway Gen-3 animation (paid)
+    video_backend: Literal["runway", "none"] = "none"
+
+    # Runway (only needed when VIDEO_BACKEND=runway)
     runway_api_key: Optional[SecretStr] = None
     runway_api_base: str = "https://api.dev.runwayml.com/v1"
-
-    # Backends
-    image_backend: Literal["dalle", "stability"] = "dalle"
-    video_backend: Literal["runway", "none"] = "runway"
 
     # Claude model
     claude_model: str = "claude-opus-4-5"
@@ -53,7 +72,7 @@ class Settings(BaseSettings):
     )
 
     def voice_id_for_language(self, language: str) -> str:
-        """Return the appropriate ElevenLabs voice ID for the given ISO language code."""
+        """Return the ElevenLabs voice ID for the given ISO language code."""
         if language == "ta" and self.elevenlabs_voice_id_ta:
             return self.elevenlabs_voice_id_ta
         return self.elevenlabs_voice_id
