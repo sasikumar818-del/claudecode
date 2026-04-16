@@ -68,6 +68,17 @@ class Settings(BaseSettings):
     sd_steps: int = 20
     sd_guidance_scale: float = 7.5
 
+    # ── Gemini (cloud LLM alternative to Ollama / Anthropic) ─────────────────
+    use_gemini_llm: bool = False    # Gemini replaces Anthropic script writer
+    gemini_api_key: Optional[SecretStr] = None
+    gemini_model: str = "gemini-2.0-flash"
+
+    # ── ImaginePro (cloud image + video generation) ───────────────────────────
+    use_imaginepro_image: bool = False  # ImaginePro replaces image generator
+    use_imaginepro_video: bool = False  # ImaginePro replaces video assembler
+    imaginepro_api_key: Optional[SecretStr] = None
+    imaginepro_api_base: str = "https://api.imaginepro.ai/api/v1"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         secrets_strip_whitespace=True,

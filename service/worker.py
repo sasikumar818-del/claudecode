@@ -120,6 +120,18 @@ class StudioWorker:
             from plugins.local_video import LocalKenBurnsAssembler
             registry.register(LocalKenBurnsAssembler())
 
+        if getattr(s, "use_gemini_llm", False):
+            from plugins.gemini_llm import GeminiScriptWriter
+            registry.register(GeminiScriptWriter())
+
+        if getattr(s, "use_imaginepro_image", False):
+            from plugins.imaginepro_image import ImagineProImageGenerator
+            registry.register(ImagineProImageGenerator())
+
+        if getattr(s, "use_imaginepro_video", False):
+            from plugins.imaginepro_video import ImagineProVideoAssembler
+            registry.register(ImagineProVideoAssembler())
+
         # Load any extra user-defined plugins from the plugin directory
         registry.load_from_directory(s.plugin_dir)
         return registry

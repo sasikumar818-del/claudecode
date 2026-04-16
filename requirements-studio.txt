@@ -19,5 +19,10 @@ accelerate>=0.27.0
 #   pip install torch --index-url https://download.pytorch.org/whl/cu121
 torch>=2.2.0
 
+# ── Gemini (cloud LLM script writer) ──────────────────────────────────────────
+# Required only when USE_GEMINI_LLM=true
+google-generativeai>=0.8.0
+
 # ── Already included in the base pipeline ─────────────────────────────────────
 # pillow, moviepy, numpy, requests, pydantic, pydantic-settings, anthropic
+# ImaginePro plugins use only `requests` (already in base pipeline)
