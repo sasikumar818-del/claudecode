@@ -154,12 +154,17 @@ class VideoAssemblerAgent:
     # Final stitch with cross-fades via ffmpeg xfade + acrossfade
     # ------------------------------------------------------------------
 
+    # Tamil subtitle font — installed alongside Noto fonts
+    _SUBTITLE_FONT = "/usr/share/fonts/truetype/noto/NotoSansTamilUI-Regular.ttf"
+    _FALLBACK_FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+
     def _stitch_final(self, package: ProductionPackage) -> None:
         sorted_clips = sorted(package.video_clips, key=lambda c: c.scene_id)
+        scenes_by_id = {s.scene_id: s for s in package.storyboard.scenes}
         clip_paths   = [c.file_path for c in sorted_clips]
         durations    = [c.duration_seconds for c in sorted_clips]
 
-        run_id  = package.pipeline_run_id
+        run_id   = package.pipeline_run_id
         out_path = self.final_dir / f"{run_id}_final.mp4"
 
         if len(clip_paths) == 1:
@@ -201,6 +206,46 @@ class VideoAssemblerAgent:
             )
             prev_a = label
 
+        # Build subtitle drawtext filters chained onto the final video stream
+        import os
+        font_path = (self._SUBTITLE_FONT
+                     if os.path.exists(self._SUBTITLE_FONT)
+                     else self._FALLBACK_FONT)
+
+        # Calculate absolute start/end times for each scene in the merged timeline
+        scene_times: list[tuple[float, float]] = []
+        t = 0.0
+        for i, d in enumerate(durations):
+            start = max(0.0, t - FADE * i)
+            end   = start + d - (FADE if i < n - 1 else 0)
+            scene_times.append((start, end))
+            t += d
+
+        subtitle_vf: list[str] = []
+        for i, vc in enumerate(sorted_clips):
+            scene = scenes_by_id.get(vc.scene_id)
+            text  = (scene.on_screen_text if scene and scene.on_screen_text else "").strip()
+            if not text:
+                continue
+            # Escape special ffmpeg drawtext chars
+            safe = text.replace("\\", "\\\\").replace("'", "\\'").replace(":", "\\:")
+            t_start, t_end = scene_times[i]
+            subtitle_vf.append(
+                f"drawtext=fontfile='{font_path}'"
+                f":text='{safe}'"
+                f":fontcolor=white"
+                f":fontsize=38"
+                f":borderw=2"
+                f":bordercolor=black"
+                f":x=(w-text_w)/2"
+                f":y=h*0.88"
+                f":enable='between(t,{t_start:.2f},{t_end:.2f})'"
+            )
+
+        if subtitle_vf:
+            fc.append(f"[{prev_v}]{'[tmp];[tmp]'.join(subtitle_vf)}[{prev_v}_sub]")
+            prev_v = f"{prev_v}_sub"
+
         filter_complex = ";".join(fc)
 
         inputs: list[str] = []
@@ -222,12 +267,27 @@ class VideoAssemblerAgent:
             "-movflags", "+faststart",
             str(out_path),
         ]
-        print(f"  [Assembler] Stitching {n} clips with cross-fades…")
+        print(f"  [Assembler] Stitching {n} clips + subtitles…")
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            raise RuntimeError(
-                f"ffmpeg xfade stitch failed:\n{result.stderr[-1000:]}"
-            )
+            # Retry without subtitles if drawtext fails (e.g. complex Tamil escaping)
+            print("  [Assembler] Subtitle burn failed, retrying without subtitles…")
+            fc_nosub = ";".join(fc[: len(fc) - (1 if subtitle_vf else 0)])
+            map_v    = prev_v.replace("_sub", "")
+            cmd2 = [
+                self.ffmpeg_path, "-y",
+                *inputs,
+                "-filter_complex", fc_nosub,
+                "-map", f"[{map_v}]",
+                "-map", f"[{prev_a}]",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                "-c:a", "aac", "-b:a", "192k", "-pix_fmt", "yuv420p",
+                "-movflags", "+faststart",
+                str(out_path),
+            ]
+            result2 = subprocess.run(cmd2, capture_output=True, text=True)
+            if result2.returncode != 0:
+                raise RuntimeError(f"ffmpeg stitch failed:\n{result2.stderr[-1000:]}")
 
         package.final_video_path = out_path
         total = sum(durations) - FADE * (n - 1)
