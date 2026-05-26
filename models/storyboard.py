@@ -22,13 +22,13 @@ class ShotType(str, Enum):
 
 class Scene(BaseModel):
     scene_id: int
-    section_id: int
+    section_id: int = 0
     shot_type: ShotType
     visual_description: str
-    camera_direction: str
+    camera_direction: str = ""
     on_screen_text: str = ""
     narration_text: str
-    duration_seconds: float
+    duration_seconds: float = 30.0
 
 
 class Storyboard(BaseModel):

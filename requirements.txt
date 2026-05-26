@@ -3,38 +3,57 @@ python-dotenv>=1.0.0
 pydantic>=2.7.0
 pydantic-settings>=2.3.0
 
-# Anthropic (Claude) — Script Writer + Storyboard agents
+# Anthropic (Claude) — Script Writer + Storyboard + Supervisor agents
 anthropic>=0.28.0
 
-# ElevenLabs TTS — Voiceover agent
-elevenlabs>=1.3.0
+# ── TTS backends ──────────────────────────────────────────────────────────────
+# espeak-ng — offline TTS engine (FREE, default, no internet/key needed)
+# System install required (NOT a pip package):
+#   Ubuntu/Debian: sudo apt install espeak-ng ffmpeg
+#   macOS:         brew install espeak-ng
+#   Windows:       https://espeak.sourceforge.net/
 
-# OpenAI (DALL-E 3) — Image generation
-openai>=1.35.0
+# gTTS — Google TTS (FREE, needs internet, no API key, good Tamil quality)
+gtts>=2.5.0
 
-# Stability AI — alternative image backend (optional)
-# Uncomment if using IMAGE_BACKEND=stability
+# edge-tts — Microsoft Edge TTS (FREE, needs internet, excellent Tamil quality)
+edge-tts>=6.1.9
+
+# ElevenLabs (optional, only needed when TTS_BACKEND=elevenlabs)
+# elevenlabs>=1.3.0
+
+# ── Image backends ────────────────────────────────────────────────────────────
+# HuggingFace Inference API (FREE, default)
+# Uses requests; optional HUGGINGFACE_API_KEY for higher rate limits
+requests>=2.32.0
+
+# OpenAI DALL-E 3 (optional, only needed when IMAGE_BACKEND=dalle)
+# openai>=1.35.0
+
+# Stability AI (optional, only needed when IMAGE_BACKEND=stability)
 # diffusers>=0.29.0
 # torch>=2.3.0
 # transformers>=4.42.0
 
-# Runway — HTTP only, no official SDK
-requests>=2.32.0
-
-# Video assembly
+# ── Video assembly ────────────────────────────────────────────────────────────
+# MoviePy — stitches images + audio into final MP4 (FREE)
 moviepy>=2.0.0
 # FFmpeg must be installed separately:
 #   Ubuntu/Debian: sudo apt install ffmpeg
 #   macOS:         brew install ffmpeg
 #   Windows:       https://ffmpeg.org/download.html
 
+# Runway — HTTP only, no official SDK (optional, only needed when VIDEO_BACKEND=runway)
+# requests is already listed above
+
+# ── Audio utilities ───────────────────────────────────────────────────────────
 # Audio duration probing
 mutagen>=1.47.0
 
-# Utilities
+# ── Utilities ─────────────────────────────────────────────────────────────────
 Pillow>=10.4.0
 tqdm>=4.66.0
 
-# Testing
+# ── Testing ───────────────────────────────────────────────────────────────────
 pytest>=8.2.0
 pytest-mock>=3.14.0
