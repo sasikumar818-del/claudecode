@@ -1,0 +1,76 @@
+{
+  "title": "குழந்தைகள் விளையாட்டு பூங்காவில் மகிழ்ச்சி நாள்",
+  "language": "ta",
+  "scenes": [
+    {
+      "scene_id": 1,
+      "section_id": 1,
+      "shot_type": "wide",
+      "visual_description": "Pixar-style cinematic wide shot of a vibrant, sun-drenched Tamil neighbourhood playground at golden hour. Colourful slides, swings and roundabouts visible in the background. A group of joyful children in bright traditional and modern clothes running toward the entrance gate. Warm amber light, soft lens flare, lush green trees.",
+      "camera_direction": "Slow dolly-in from a high wide angle, gradually lowering to child eye-level as children enter the park.",
+      "on_screen_text": "காலை வெய்யிலில் விளையாட்டு பூங்கா",
+      "narration_text": "ஒரு அழகான காலை வேளை. சூரிய ஒளி மெதுவாக பூமியை தொட்டது. குழந்தைகள் எல்லாரும் மகிழ்ச்சியுடன் விளையாட்டு பூங்காவை நோக்கி ஓடி வந்தனர். அவர்களின் சிரிப்பு குரல் காற்றில் கலந்து பரவியது.",
+      "duration_seconds": 60
+    },
+    {
+      "scene_id": 2,
+      "section_id": 2,
+      "shot_type": "medium",
+      "visual_description": "Pixar-style medium shot of ornate playground entrance gates decorated with Tamil kolam patterns and colourful balloons. A smiling security guard in uniform welcomes children with a wave. Children clutching tiffin boxes, wearing school uniforms and colourful accessories, pass through the gate with excitement.",
+      "camera_direction": "Static medium shot at gate level, then gentle pan-right following children as they walk through.",
+      "on_screen_text": "வரவேற்கிறோம் — நல்வரவு!",
+      "narration_text": "பூங்காவின் வாசலில் அழகான வண்ண பலூன்கள் ஆடின. காவலர் அண்ணன் அன்போடு வரவேற்றார். ஒவ்வொரு குழந்தையும் புன்னகையுடன் உள்ளே நுழைந்தனர். இன்று மிகவும் சிறப்பான ஒரு நாள் என்று அனைவருக்கும் தெரிந்தது.",
+      "duration_seconds": 60
+    },
+    {
+      "scene_id": 3,
+      "section_id": 3,
+      "shot_type": "close_up",
+      "visual_description": "Pixar-style close-up of gleaming colourful playground equipment — spiral slides in red and yellow, blue swings with happy children soaring high, spinning merry-go-round with kids holding on and laughing. Close-up details of tiny hands gripping rails, feet leaving the ground, and wide sparkling eyes full of joy.",
+      "camera_direction": "Dynamic handheld-style close-ups cutting between slide, swings, and merry-go-round. Occasional slow-motion for swings reaching peak height.",
+      "on_screen_text": "சறுக்கல் மற்றும் ஊஞ்சல் ஆட்டம்",
+      "narration_text": "சறுக்கல் பலகையில் குழந்தைகள் வேகமாக இறங்கி கீழே விழுந்து சிரித்தனர். ஊஞ்சலில் ஆடிய பிள்ளைகள் வானத்தை தொட முயன்றனர். சுழலும் ஆட்டத்தில் எல்லோரும் சேர்ந்து சுழன்று குதூகலித்தனர். இந்த மகிழ்ச்சி வார்த்தைகளில் சொல்ல முடியாதது.",
+      "duration_seconds": 120
+    },
+    {
+      "scene_id": 4,
+      "section_id": 4,
+      "shot_type": "aerial",
+      "visual_description": "Pixar-style aerial drone shot of the full playground bustling with children playing kabaddi, cricket, and tag on a lush green field. Teams in different coloured jerseys, coaches cheering from the sidelines, parents watching with pride. Aerial view shows the full vibrant tapestry of childhood play.",
+      "camera_direction": "Slow sweeping aerial orbit around the entire field, gradually descending as the kabaddi team scores a point.",
+      "on_screen_text": "கூட்டு விளையாட்டு — ஒற்றுமையே பலம்",
+      "narration_text": "மைதானத்தில் கபடி ஆட்டம் தொடங்கியது. ஒரு குழு தாக்கும் போது மறு குழு வீரத்துடன் தடுத்தது. கிரிக்கெட் மைதானத்தில் மறுபுறம் பந்து விளையாட்டு நடந்தது. அனைவரும் ஒரு குழுவாக இணைந்து விளையாடும் போது உண்மையான மகிழ்ச்சி கிடைக்கிறது.",
+      "duration_seconds": 120
+    },
+    {
+      "scene_id": 5,
+      "section_id": 5,
+      "shot_type": "medium",
+      "visual_description": "Pixar-style warm medium shot of children sitting under a large banyan tree having their snack break. Colourful tiffin boxes open, sharing idli, fruits, and juice packs. Teachers and parents handing out snacks with love. Dappled sunlight through tree leaves, butterflies nearby, peaceful and heartwarming atmosphere.",
+      "camera_direction": "Gentle pan across the snack circle, pausing on individual children sharing food, then pull back to reveal the full group.",
+      "on_screen_text": "சிற்றுண்டி இடைவேளை — பகிர்தல் அன்பு",
+      "narration_text": "விளையாட்டுக்கு பிறகு குழந்தைகள் ஒரு பெரிய ஆல மரத்தின் கீழ் அமர்ந்தனர். அனைவரும் தங்கள் சாப்பாட்டை பகிர்ந்து கொண்டனர். இட்லி, பழங்கள், பழரசம் என்று எல்லாமே சேர்ந்து சாப்பிட்ட போது இன்னும் சுவையாக இருந்தது. பகிர்தலே அன்பின் மொழி.",
+      "duration_seconds": 60
+    },
+    {
+      "scene_id": 6,
+      "section_id": 6,
+      "shot_type": "close_up",
+      "visual_description": "Pixar-style close-up of an outdoor arts and crafts corner with children painting kolam patterns, making clay toys, and building sandcastles. Colourful paints, brushes, clay and sand fill the frame. Children's hands creating beautiful things, faces focused and proud of their creations.",
+      "camera_direction": "Macro close-ups of creative hands at work — painting, moulding clay, drawing in sand. Slow reveal of each finished artwork.",
+      "on_screen_text": "படைப்பாற்றல் மூலை — கலை உலகம்",
+      "narration_text": "ஒரு மூலையில் கலை செயல்பாடுகள் நடந்தன. சில குழந்தைகள் கோலம் வரைந்தனர், சிலர் களிமண்ணில் பொம்மைகள் செய்தனர். மணல் கோட்டைகள் கட்டிய குழந்தைகளின் கண்களில் பெருமை தெரிந்தது. ஒவ்வொரு குழந்தையும் ஒரு கலைஞன் என்பதை இந்த நாள் நிரூபித்தது.",
+      "duration_seconds": 60
+    },
+    {
+      "scene_id": 7,
+      "section_id": 7,
+      "shot_type": "wide",
+      "visual_description": "Pixar-style sweeping wide shot of the grand finale — all children gathered on the main stage for a group photo and a tiny dance performance. Colourful streamers falling, children waving to parents, firework sparklers in the evening light. Golden sunset sky behind, entire playground visible, pure cinematic joy.",
+      "camera_direction": "Epic wide establishing shot from a high angle showing everyone together, then slow push-in to frame the dancing children in the warm sunset glow.",
+      "on_screen_text": "ஒரு மறக்கமுடியாத நாள் — நன்றி!",
+      "narration_text": "நாளின் இறுதியில் அனைவரும் ஒரு இடத்தில் கூடினர். குழந்தைகள் சேர்ந்து ஒரு சிறிய நடனம் ஆடினர். பெற்றோர்கள் கண்களில் மகிழ்ச்சியில் கண்ணீர் வந்தது. இந்த விளையாட்டு பூங்காவில் கழித்த ஒவ்வொரு நிமிடமும் மனதில் என்றும் நிலைத்திருக்கும். குழந்தைகளின் சிரிப்பே உலகின் மிக அழகான இசை.",
+      "duration_seconds": 120
+    }
+  ]
+}

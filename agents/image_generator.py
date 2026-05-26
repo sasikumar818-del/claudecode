@@ -1,13 +1,33 @@
-"""Image Generator Agent — generates one image per scene via DALL-E 3 or Stability AI."""
+"""Image Generator Agent — generates one image per scene.
+
+Backends (in order of preference for zero-cost use):
+  huggingface — HuggingFace Inference API, FLUX.1-schnell (free tier)
+  pil         — offline gradient card (no internet, no API key)
+  dalle       — OpenAI DALL-E 3 (paid)
+  stability   — Stability AI (paid)
+"""
 from __future__ import annotations
 
 import base64
+import hashlib
+import io
 from pathlib import Path
 from typing import Optional
 
-from config.settings import Settings, get_settings
+from config.settings import Settings
 from models.production import ImageAsset
 from models.storyboard import Storyboard
+
+# 7 cinematic color palettes for PIL fallback
+_PALETTES = [
+    ((25, 25, 112), (255, 165, 0)),    # midnight blue → amber
+    ((0, 51, 102), (0, 204, 153)),     # deep navy → teal
+    ((80, 0, 120), (255, 100, 180)),   # violet → rose
+    ((20, 60, 20), (200, 255, 100)),   # forest → lime
+    ((120, 20, 20), (255, 200, 80)),   # burgundy → gold
+    ((0, 80, 120), (180, 230, 255)),   # ocean → sky
+    ((60, 40, 0), (255, 210, 120)),    # earth → wheat
+]
 
 
 class ImageGeneratorAgent:
@@ -17,22 +37,27 @@ class ImageGeneratorAgent:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         if self.backend == "dalle":
+            if not settings.openai_api_key:
+                raise ValueError("openai_api_key is required for image_backend='dalle'")
             from openai import OpenAI
             self.openai_client = OpenAI(
                 api_key=settings.openai_api_key.get_secret_value()
             )
         elif self.backend == "stability":
-            self.stability_api_key = (
-                settings.stability_api_key.get_secret_value()
-                if settings.stability_api_key
-                else None
-            )
+            if not settings.stability_api_key:
+                raise ValueError("stability_api_key is required for image_backend='stability'")
+            self.stability_api_key = settings.stability_api_key.get_secret_value()
+        elif self.backend == "huggingface":
+            self.hf_api_key = settings.huggingface_api_key
+            self.hf_model = settings.huggingface_image_model
 
     def run(self, storyboard: Storyboard) -> list[ImageAsset]:
         assets: list[ImageAsset] = []
         for scene in storyboard.scenes:
-            print(f"  [ImageGen] Generating image for scene {scene.scene_id} ({self.backend})…")
-            image_bytes, revised_prompt = self._generate(scene.visual_description)
+            print(f"  [ImageGen] Scene {scene.scene_id} → {self.backend}…")
+            image_bytes, revised_prompt = self._generate(
+                scene.visual_description, scene.scene_id
+            )
             file_path = self.output_dir / f"scene_{scene.scene_id:03d}.png"
             file_path.write_bytes(image_bytes)
             assets.append(
@@ -44,13 +69,129 @@ class ImageGeneratorAgent:
                     revised_prompt=revised_prompt,
                 )
             )
-            print(f"  [ImageGen] Saved {file_path}")
+            print(f"  [ImageGen] Saved {file_path.name}")
         return assets
 
-    def _generate(self, prompt: str) -> tuple[bytes, Optional[str]]:
+    # ------------------------------------------------------------------
+    # Backend dispatch
+    # ------------------------------------------------------------------
+
+    def _generate(self, prompt: str, scene_id: int = 1) -> tuple[bytes, Optional[str]]:
+        if self.backend == "pil":
+            return self._generate_pil(prompt, scene_id), None
+        if self.backend == "huggingface":
+            try:
+                return self._generate_huggingface(prompt), None
+            except Exception as exc:
+                print(f"  [ImageGen] HuggingFace failed ({exc}), falling back to PIL")
+                return self._generate_pil(prompt, scene_id), None
         if self.backend == "dalle":
             return self._generate_dalle(prompt)
-        return self._generate_stability(prompt)
+        if self.backend == "stability":
+            return self._generate_stability(prompt), None
+        raise ValueError(f"Unknown image backend: {self.backend}")
+
+    # ------------------------------------------------------------------
+    # HuggingFace Inference API (free tier)
+    # ------------------------------------------------------------------
+
+    def _generate_huggingface(self, prompt: str) -> bytes:
+        import requests
+
+        api_url = f"https://api-inference.huggingface.co/models/{self.hf_model}"
+        headers: dict[str, str] = {"Content-Type": "application/json"}
+        if self.hf_api_key:
+            headers["Authorization"] = f"Bearer {self.hf_api_key}"
+
+        resp = requests.post(
+            api_url,
+            headers=headers,
+            json={
+                "inputs": prompt,
+                "parameters": {"width": 1024, "height": 576, "num_inference_steps": 4},
+            },
+            timeout=120,
+        )
+        resp.raise_for_status()
+        return resp.content
+
+    # ------------------------------------------------------------------
+    # PIL gradient card (offline fallback, zero-cost)
+    # ------------------------------------------------------------------
+
+    def _generate_pil(self, prompt: str, scene_id: int) -> bytes:
+        from PIL import Image, ImageDraw, ImageFont
+
+        palette_idx = (scene_id - 1) % len(_PALETTES)
+        color_start, color_end = _PALETTES[palette_idx]
+
+        W, H = 1920, 1080
+        img = Image.new("RGB", (W, H))
+        draw = ImageDraw.Draw(img)
+
+        # Horizontal gradient
+        for x in range(W):
+            r = int(color_start[0] + (color_end[0] - color_start[0]) * x / W)
+            g = int(color_start[1] + (color_end[1] - color_start[1]) * x / W)
+            b = int(color_start[2] + (color_end[2] - color_start[2]) * x / W)
+            draw.line([(x, 0), (x, H)], fill=(r, g, b))
+
+        # Decorative accent circles
+        seed = int(hashlib.md5(prompt.encode()).hexdigest(), 16)
+        rng = seed
+        for _ in range(5):
+            rng = (rng * 6364136223846793005 + 1442695040888963407) & 0xFFFFFFFF
+            cx = (rng >> 16) % W
+            rng = (rng * 6364136223846793005 + 1442695040888963407) & 0xFFFFFFFF
+            cy = (rng >> 16) % H
+            rng = (rng * 6364136223846793005 + 1442695040888963407) & 0xFFFFFFFF
+            radius = 80 + (rng >> 16) % 200
+            alpha = 30 + (rng >> 8) % 40
+            overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+            od = ImageDraw.Draw(overlay)
+            od.ellipse(
+                [cx - radius, cy - radius, cx + radius, cy + radius],
+                fill=(*color_end, alpha),
+            )
+            img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+            draw = ImageDraw.Draw(img)
+
+        # Scene label
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48)
+            small_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
+        except OSError:
+            font = ImageFont.load_default()
+            small_font = font
+
+        label = f"Scene {scene_id}"
+        draw.text((W // 2, H // 2 - 60), label, font=font, fill="white", anchor="mm")
+
+        # Wrap prompt text
+        words = prompt[:120].split()
+        lines, line = [], []
+        for w in words:
+            if len(" ".join(line + [w])) <= 60:
+                line.append(w)
+            else:
+                lines.append(" ".join(line))
+                line = [w]
+        if line:
+            lines.append(" ".join(line))
+
+        for i, ln in enumerate(lines[:3]):
+            draw.text(
+                (W // 2, H // 2 + 20 + i * 40),
+                ln, font=small_font, fill=(220, 220, 220), anchor="mm",
+            )
+
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()
+
+    # ------------------------------------------------------------------
+    # DALL-E 3 (paid)
+    # ------------------------------------------------------------------
 
     def _generate_dalle(self, prompt: str) -> tuple[bytes, str]:
         response = self.openai_client.images.generate(
@@ -65,7 +206,11 @@ class ImageGeneratorAgent:
         revised = response.data[0].revised_prompt or prompt
         return base64.b64decode(b64), revised
 
-    def _generate_stability(self, prompt: str) -> tuple[bytes, None]:
+    # ------------------------------------------------------------------
+    # Stability AI (paid)
+    # ------------------------------------------------------------------
+
+    def _generate_stability(self, prompt: str) -> bytes:
         import requests
 
         response = requests.post(
@@ -83,4 +228,4 @@ class ImageGeneratorAgent:
             timeout=120,
         )
         response.raise_for_status()
-        return response.content, None
+        return response.content

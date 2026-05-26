@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -29,6 +32,18 @@ class Scene(BaseModel):
 
 
 class Storyboard(BaseModel):
-    script: VideoScript
+    script: Optional[VideoScript] = None
     scenes: list[Scene]
+    title: str = ""
+    language: str = "en"
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    @classmethod
+    def from_json_file(cls, path: Path) -> "Storyboard":
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        scenes = [Scene(**s) for s in data["scenes"]]
+        return cls(
+            scenes=scenes,
+            title=data.get("title", ""),
+            language=data.get("language", "en"),
+        )

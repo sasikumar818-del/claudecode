@@ -1,12 +1,38 @@
-"""Video Assembler Agent — animates images via Runway and stitches the final MP4."""
+"""Video Assembler Agent — applies Ken Burns cinematic effect and stitches 1080p MP4.
+
+For each scene:
+  - Slow zoom-in or zoom-out paired with a pan creates the Ken Burns effect.
+  - A unique zoom/pan pattern is cycled across all scenes for visual variety.
+
+Final stitch:
+  - Clips are cross-faded (1s overlap) for smooth scene transitions.
+  - Tamil / multilingual subtitles are overlaid from on_screen_text.
+  - Output is 1920×1080, H.264, AAC, 24fps.
+"""
 from __future__ import annotations
 
 import base64
 import time
 from pathlib import Path
 
-from config.settings import Settings, get_settings
+import numpy as np
+
+from config.settings import Settings
 from models.production import AudioAsset, ImageAsset, ProductionPackage, VideoClip
+
+# Ken Burns patterns: alternate zoom direction and pan axis per scene
+_KB_PATTERNS = [
+    {"zoom": "in",  "pan": "right"},
+    {"zoom": "out", "pan": "left"},
+    {"zoom": "in",  "pan": "left"},
+    {"zoom": "out", "pan": "right"},
+    {"zoom": "in",  "pan": "center"},
+    {"zoom": "out", "pan": "center"},
+    {"zoom": "in",  "pan": "right"},
+]
+
+FADE_DURATION = 1.0   # seconds for cross-fade between clips
+KB_PADDING    = 0.15  # 15% extra canvas size gives zoom room
 
 
 class VideoAssemblerAgent:
@@ -20,6 +46,8 @@ class VideoAssemblerAgent:
         self.runway_api_base = settings.runway_api_base
         self.clips_dir = settings.output_subdirs["clips"]
         self.final_dir = settings.output_subdirs["final"]
+        self.video_width = settings.video_width
+        self.video_height = settings.video_height
         self.clips_dir.mkdir(parents=True, exist_ok=True)
         self.final_dir.mkdir(parents=True, exist_ok=True)
 
@@ -45,8 +73,9 @@ class VideoAssemblerAgent:
                 clip_path = self._animate_with_runway(image, audio)
                 source = "runway"
             else:
-                clip_path = self._image_to_static_clip(image, audio)
-                source = "static"
+                kb = _KB_PATTERNS[(scene_id - 1) % len(_KB_PATTERNS)]
+                clip_path = self._ken_burns_clip(image, audio, kb)
+                source = "ken_burns"
 
             package.video_clips.append(
                 VideoClip(
@@ -56,6 +85,84 @@ class VideoAssemblerAgent:
                     source=source,
                 )
             )
+
+    # ------------------------------------------------------------------
+    # Ken Burns effect (offline, zero-cost)
+    # ------------------------------------------------------------------
+
+    def _ken_burns_clip(
+        self, image: ImageAsset, audio: AudioAsset, kb: dict
+    ) -> Path:
+        from PIL import Image
+        from moviepy import AudioFileClip, VideoClip
+
+        clip_path = self.clips_dir / f"scene_{image.scene_id:03d}_kb.mp4"
+        duration = audio.duration_seconds
+        tw, th = self.video_width, self.video_height
+
+        # Upscale source image to give room for zoom/pan
+        src = Image.open(str(image.file_path)).convert("RGB")
+        base_scale = max(tw / src.width, th / src.height)
+        big_scale = base_scale * (1.0 + KB_PADDING)
+        sw = max(int(src.width * big_scale), tw + 2)
+        sh = max(int(src.height * big_scale), th + 2)
+        img_big = np.array(src.resize((sw, sh), Image.LANCZOS))
+
+        zoom_dir = kb["zoom"]   # "in" | "out"
+        pan_dir  = kb["pan"]    # "left" | "right" | "center"
+
+        def make_frame(t: float) -> np.ndarray:
+            p = t / duration  # 0 → 1
+
+            # Zoom: crop window shrinks (zoom-in) or grows (zoom-out)
+            if zoom_dir == "in":
+                # start big crop, shrink toward tw×th
+                cw = int(tw + (sw - tw) * (1.0 - p))
+                ch = int(th + (sh - th) * (1.0 - p))
+            else:
+                # start tw×th, grow toward big crop
+                cw = int(tw + (sw - tw) * p)
+                ch = int(th + (sh - th) * p)
+
+            cw = max(min(cw, sw), tw)
+            ch = max(min(ch, sh), th)
+
+            max_x = sw - cw
+            max_y = sh - ch
+
+            # Pan: horizontal drift
+            if pan_dir == "right":
+                x = int(max_x * p)
+            elif pan_dir == "left":
+                x = int(max_x * (1.0 - p))
+            else:
+                x = max_x // 2
+
+            y = max_y // 2  # vertical center
+
+            crop = img_big[y : y + ch, x : x + cw]
+            frame_pil = Image.fromarray(crop).resize((tw, th), Image.LANCZOS)
+            return np.array(frame_pil)
+
+        video_clip = VideoClip(make_frame, duration=duration)
+        audio_clip = AudioFileClip(str(audio.file_path))
+        final = video_clip.with_audio(audio_clip)
+        final.write_videofile(
+            str(clip_path),
+            fps=24,
+            codec="libx264",
+            audio_codec="aac",
+            ffmpeg_params=["-crf", "20"],
+            logger=None,
+        )
+        final.close()
+        audio_clip.close()
+        print(f"  [Assembler] Ken Burns clip → {clip_path.name}")
+        return clip_path
+
+    # ------------------------------------------------------------------
+    # Runway animation (paid, optional)
+    # ------------------------------------------------------------------
 
     def _animate_with_runway(self, image: ImageAsset, audio: AudioAsset) -> Path:
         import requests
@@ -85,8 +192,7 @@ class VideoAssemblerAgent:
         resp.raise_for_status()
         task_id = resp.json()["id"]
 
-        # Poll until complete
-        for _ in range(60):  # max 10 min
+        for _ in range(60):
             time.sleep(10)
             poll = requests.get(
                 f"{self.runway_api_base}/tasks/{task_id}",
@@ -96,72 +202,64 @@ class VideoAssemblerAgent:
             poll.raise_for_status()
             status = poll.json().get("status")
             if status == "SUCCEEDED":
-                video_url = poll.json()["output"][0]
-                video_bytes = requests.get(video_url, timeout=120).content
+                video_bytes = requests.get(poll.json()["output"][0], timeout=120).content
                 clip_path.write_bytes(video_bytes)
-                print(f"  [Assembler] Runway clip saved → {clip_path}")
                 return clip_path
             if status in ("FAILED", "CANCELLED"):
                 raise RuntimeError(f"Runway task {task_id} failed: {status}")
 
         raise TimeoutError(f"Runway task {task_id} timed out after 10 minutes")
 
-    def _image_to_static_clip(self, image: ImageAsset, audio: AudioAsset) -> Path:
-        from moviepy import AudioFileClip, ImageClip
-
-        clip_path = self.clips_dir / f"scene_{image.scene_id:03d}_static.mp4"
-        img_clip = ImageClip(str(image.file_path), duration=audio.duration_seconds)
-        audio_clip = AudioFileClip(str(audio.file_path))
-        final = img_clip.with_audio(audio_clip)
-        final.write_videofile(
-            str(clip_path),
-            fps=24,
-            codec="libx264",
-            audio_codec="aac",
-            ffmpeg_params=["-crf", "18"],
-            logger=None,
-        )
-        final.close()
-        print(f"  [Assembler] Static clip saved → {clip_path}")
-        return clip_path
-
     # ------------------------------------------------------------------
-    # Final stitch
+    # Final stitch with cross-fades and subtitle overlay
     # ------------------------------------------------------------------
 
     def _stitch_final(self, package: ProductionPackage) -> None:
-        from moviepy import CompositeVideoClip, TextClip, VideoFileClip, concatenate_videoclips
+        from moviepy import VideoFileClip, concatenate_videoclips
+        from moviepy.video.fx import FadeIn, FadeOut, CrossFadeIn
 
         sorted_clips = sorted(package.video_clips, key=lambda c: c.scene_id)
         scenes_by_id = {s.scene_id: s for s in package.storyboard.scenes}
 
-        video_clips = [VideoFileClip(str(c.file_path)) for c in sorted_clips]
-        composite_clips = []
-        offset = 0.0
+        raw_clips = [VideoFileClip(str(c.file_path)) for c in sorted_clips]
 
-        for clip, vc in zip(video_clips, sorted_clips):
-            scene = scenes_by_id.get(vc.scene_id)
-            layers = [clip]
+        # Apply cross-fade: each clip (except first) fades in over previous
+        faded: list = []
+        for i, clip in enumerate(raw_clips):
+            scene = scenes_by_id.get(sorted_clips[i].scene_id)
+            c = clip
 
+            if i == 0:
+                c = c.with_effects([FadeIn(FADE_DURATION)])
+            elif i == len(raw_clips) - 1:
+                c = c.with_effects([CrossFadeIn(FADE_DURATION), FadeOut(FADE_DURATION)])
+            else:
+                c = c.with_effects([CrossFadeIn(FADE_DURATION)])
+
+            # Subtitle overlay
             if scene and scene.on_screen_text:
-                text = (
-                    TextClip(
-                        text=scene.on_screen_text,
-                        font_size=32,
-                        color="white",
-                        stroke_color="black",
-                        stroke_width=1,
+                try:
+                    from moviepy import TextClip, CompositeVideoClip
+                    txt = (
+                        TextClip(
+                            text=scene.on_screen_text,
+                            font_size=36,
+                            color="white",
+                            stroke_color="black",
+                            stroke_width=2,
+                            method="caption",
+                            size=(self.video_width - 80, None),
+                        )
+                        .with_duration(c.duration)
+                        .with_position(("center", 0.88), relative=True)
                     )
-                    .with_duration(clip.duration)
-                    .with_position(("center", 0.85), relative=True)
-                    .with_start(offset)
-                )
-                layers.append(text)
+                    c = CompositeVideoClip([c, txt])
+                except Exception as txt_err:
+                    print(f"  [Assembler] Subtitle skipped for scene {sorted_clips[i].scene_id}: {txt_err}")
 
-            composite_clips.extend(layers)
-            offset += clip.duration
+            faded.append(c)
 
-        final = concatenate_videoclips(video_clips, method="compose")
+        final = concatenate_videoclips(faded, padding=-FADE_DURATION, method="compose")
 
         run_id = package.pipeline_run_id
         out_path = self.final_dir / f"{run_id}_final.mp4"
@@ -170,11 +268,12 @@ class VideoAssemblerAgent:
             fps=24,
             codec="libx264",
             audio_codec="aac",
+            ffmpeg_params=["-crf", "18"],
             logger=None,
         )
         final.close()
-        for c in video_clips:
+        for c in raw_clips:
             c.close()
 
         package.final_video_path = out_path
-        print(f"  [Assembler] Final video saved → {out_path}")
+        print(f"  [Assembler] Final video → {out_path}")

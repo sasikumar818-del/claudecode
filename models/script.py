@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from pathlib import Path
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -11,6 +12,7 @@ class ScriptRequest(BaseModel):
     target_duration_seconds: int = 60
     tone: Literal["educational", "cinematic", "promotional"] = "educational"
     language: str = "en"
+    storyboard_path: Optional[Path] = None
 
 
 class ScriptSection(BaseModel):

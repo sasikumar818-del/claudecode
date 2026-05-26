@@ -9,27 +9,36 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # Anthropic (Claude)
-    anthropic_api_key: SecretStr
+    # Anthropic (Claude) — optional; supervisor skips LLM validation when absent
+    anthropic_api_key: Optional[SecretStr] = None
 
-    # ElevenLabs TTS
-    elevenlabs_api_key: SecretStr
+    # TTS backend selection
+    tts_backend: Literal["espeak", "gtts", "edge-tts", "elevenlabs"] = "espeak"
+
+    # ElevenLabs TTS — only needed when tts_backend="elevenlabs"
+    elevenlabs_api_key: Optional[SecretStr] = None
     elevenlabs_voice_id: str = "21m00Tcm4TlvDq8ikWAM"
     elevenlabs_model_id: str = "eleven_multilingual_v2"
 
-    # OpenAI (DALL-E 3)
-    openai_api_key: SecretStr
+    # Image backend selection
+    image_backend: Literal["huggingface", "pil", "dalle", "stability"] = "huggingface"
 
-    # Stability AI (alternative image backend)
+    # HuggingFace Inference API — free tier; empty string = anonymous
+    huggingface_api_key: str = ""
+    huggingface_image_model: str = "black-forest-labs/FLUX.1-schnell"
+
+    # OpenAI (DALL-E 3) — only needed when image_backend="dalle"
+    openai_api_key: Optional[SecretStr] = None
+
+    # Stability AI — only needed when image_backend="stability"
     stability_api_key: Optional[SecretStr] = None
 
-    # Runway (video animation)
+    # Runway (video animation) — only needed when video_backend="runway"
     runway_api_key: Optional[SecretStr] = None
     runway_api_base: str = "https://api.dev.runwayml.com/v1"
 
     # Backends
-    image_backend: Literal["dalle", "stability"] = "dalle"
-    video_backend: Literal["runway", "none"] = "runway"
+    video_backend: Literal["runway", "none"] = "none"
 
     # Claude model
     claude_model: str = "claude-opus-4-6"
@@ -37,6 +46,10 @@ class Settings(BaseSettings):
     # Output
     output_dir: Path = Path("output")
     watermark_text: str = "PREVIEW — NOT FOR DISTRIBUTION"
+
+    # Video resolution
+    video_width: int = 1920
+    video_height: int = 1080
 
     # FFmpeg
     ffmpeg_path: str = "ffmpeg"
@@ -57,6 +70,15 @@ class Settings(BaseSettings):
             "clips": self.output_dir / "clips",
             "final": self.output_dir / "final",
         }
+
+    def voice_id_for_language(self, language: str) -> str:
+        """Return the ElevenLabs voice ID best suited for the given language."""
+        lang_to_voice = {
+            "ta": "21m00Tcm4TlvDq8ikWAM",
+            "hi": "21m00Tcm4TlvDq8ikWAM",
+            "en": "21m00Tcm4TlvDq8ikWAM",
+        }
+        return lang_to_voice.get(language, self.elevenlabs_voice_id)
 
 
 @lru_cache(maxsize=1)
