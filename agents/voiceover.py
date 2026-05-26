@@ -47,13 +47,6 @@ class VoiceoverAgent:
             self._el_voice_id = settings.elevenlabs_voice_id
             self._el_model_id = settings.elevenlabs_model_id
 
-        if self.tts_backend == "elevenlabs":
-            from elevenlabs.client import ElevenLabs
-            self.elevenlabs_client = ElevenLabs(
-                api_key=settings.elevenlabs_api_key.get_secret_value()
-            )
-            self.elevenlabs_model_id = settings.elevenlabs_model_id
-
     def run(self, storyboard: Storyboard) -> list[AudioAsset]:
         language = storyboard.language or "en"
         assets: list[AudioAsset] = []

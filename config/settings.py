@@ -60,12 +60,6 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    def voice_id_for_language(self, language: str) -> str:
-        """Return the ElevenLabs voice ID for the given ISO language code."""
-        if language == "ta" and self.elevenlabs_voice_id_ta:
-            return self.elevenlabs_voice_id_ta
-        return self.elevenlabs_voice_id
-
     @property
     def output_subdirs(self) -> dict[str, Path]:
         return {
@@ -78,7 +72,6 @@ class Settings(BaseSettings):
         }
 
     def voice_id_for_language(self, language: str) -> str:
-        """Return the ElevenLabs voice ID best suited for the given language."""
         lang_to_voice = {
             "ta": "21m00Tcm4TlvDq8ikWAM",
             "hi": "21m00Tcm4TlvDq8ikWAM",
