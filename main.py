@@ -27,6 +27,8 @@ Examples:
                         help="ISO language code (default: en)")
     parser.add_argument("--no-animate", action="store_true",
                         help="Skip Runway animation — use static images only (faster, cheaper)")
+    parser.add_argument("--storyboard-file", default=None,
+                        help="Path to pre-defined storyboard JSON (skips script+storyboard generation)")
     args = parser.parse_args()
 
     if args.no_animate:
@@ -40,6 +42,8 @@ Examples:
     print(f"Duration : {args.duration}s")
     print(f"Tone     : {args.tone}")
     print(f"Animate  : {'No (static images)' if args.no_animate else 'Yes (Runway)'}")
+    if args.storyboard_file:
+        print(f"Storyboard: {args.storyboard_file} (pre-defined, skipping generation)")
     print("-" * 50)
 
     package = run_pipeline(
@@ -47,6 +51,7 @@ Examples:
         duration=args.duration,
         tone=args.tone,
         language=args.language,
+        storyboard_path=args.storyboard_file,
     )
 
     print(f"\nDone! Review your preview before publishing:")

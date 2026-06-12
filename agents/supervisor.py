@@ -1,10 +1,10 @@
-"""Supervisor Agent — orchestrates and monitors all other agents in the pipeline.
+"""Supervisor Agent — orchestrates all pipeline agents.
 
-The supervisor uses Claude to make decisions at each stage:
-- Validates outputs before passing them to the next agent
-- Retries failed steps with adjusted instructions
-- Can skip or reorder steps based on context
-- Provides a structured audit log of every decision
+When anthropic_api_key is set, Claude validates each step (proceed/retry/skip/abort).
+When it is absent, every step auto-proceeds (offline/free mode).
+
+When request.storyboard_path is provided, steps 1 (Script Writer) and
+2 (Storyboard) are skipped and the pre-built storyboard is loaded from JSON.
 """
 from __future__ import annotations
 
@@ -16,25 +16,24 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
 
-import anthropic
-
 from agents.image_generator import ImageGeneratorAgent
 from agents.review import ReviewAgent
 from agents.script_writer import ScriptWriterAgent
 from agents.storyboard import StoryboardAgent
 from agents.video_assembler import VideoAssemblerAgent
 from agents.voiceover import VoiceoverAgent
-from config.settings import Settings, get_settings
+from config.settings import Settings
 from models.production import ProductionPackage
 from models.script import ScriptRequest
+from models.storyboard import Storyboard
 
 
 class StepStatus(str, Enum):
-    PENDING = "pending"
-    RUNNING = "running"
-    SUCCESS = "success"
-    FAILED = "failed"
-    SKIPPED = "skipped"
+    PENDING  = "pending"
+    RUNNING  = "running"
+    SUCCESS  = "success"
+    FAILED   = "failed"
+    SKIPPED  = "skipped"
     RETRYING = "retrying"
 
 
@@ -103,35 +102,29 @@ Decision rules:
 
 
 class SupervisorAgent:
-    """
-    Controls and monitors all pipeline agents.
-
-    Responsibilities:
-    - Instantiate and manage every specialist agent
-    - Call each agent in the correct order
-    - Ask Claude to validate each output and decide: proceed / retry / skip / abort
-    - Record a full audit log saved to output/final/<run_id>_supervisor_log.json
-    - Print a live status table to stdout
-    """
-
     MAX_RETRIES = 2
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self.client = anthropic.Anthropic(
-            api_key=settings.anthropic_api_key.get_secret_value()
-        )
-        self.model = settings.claude_model
         self.final_dir = settings.output_subdirs["final"]
         self.final_dir.mkdir(parents=True, exist_ok=True)
 
+        # Claude client — optional; if absent we auto-proceed every step
+        self._claude_client = None
+        if settings.anthropic_api_key:
+            import anthropic
+            self._claude_client = anthropic.Anthropic(
+                api_key=settings.anthropic_api_key.get_secret_value()
+            )
+        self.model = settings.claude_model
+
         # Specialist agents
-        self.script_writer = ScriptWriterAgent(settings)
-        self.storyboard = StoryboardAgent(settings)
-        self.voiceover = VoiceoverAgent(settings)
+        self.script_writer   = ScriptWriterAgent(settings)
+        self.storyboard_agent = StoryboardAgent(settings)
+        self.voiceover       = VoiceoverAgent(settings)
         self.image_generator = ImageGeneratorAgent(settings)
         self.video_assembler = VideoAssemblerAgent(settings)
-        self.review = ReviewAgent(settings)
+        self.review          = ReviewAgent(settings)
 
         self._log: Optional[SupervisorLog] = None
 
@@ -140,36 +133,30 @@ class SupervisorAgent:
     # ------------------------------------------------------------------
 
     def run(self, request: ScriptRequest) -> ProductionPackage:
-        self._log = SupervisorLog(
-            pipeline_run_id="",   # filled after package is created
-            topic=request.topic,
-        )
+        self._log = SupervisorLog(pipeline_run_id="", topic=request.topic)
         self._print_header(request)
 
-        # Ensure all output subdirs exist
         for path in self.settings.output_subdirs.values():
             path.mkdir(parents=True, exist_ok=True)
 
-        package: Optional[ProductionPackage] = None
-
-        # ── Step 1: Script Writer ──────────────────────────────────────
-        script = self._run_step(
-            name="Script Writer",
-            fn=lambda: self.script_writer.run(request),
-            summary_fn=lambda r: (
-                f"Generated script titled '{r.title}' with {len(r.sections)} sections "
-                f"({r.total_estimated_duration:.0f}s estimated)."
-            ),
-        )
-
-        # ── Step 2: Storyboard ─────────────────────────────────────────
-        storyboard = self._run_step(
-            name="Storyboard",
-            fn=lambda: self.storyboard.run(script),
-            summary_fn=lambda r: (
-                f"Created storyboard with {len(r.scenes)} scenes."
-            ),
-        )
+        # ── Step 1 & 2: Script + Storyboard (or load pre-built) ───────
+        if request.storyboard_path and Path(request.storyboard_path).exists():
+            print(f"\n  [Supervisor] Loading pre-built storyboard: {request.storyboard_path}")
+            storyboard = Storyboard.from_json_file(request.storyboard_path)
+        else:
+            script = self._run_step(
+                name="Script Writer",
+                fn=lambda: self.script_writer.run(request),
+                summary_fn=lambda r: (
+                    f"Generated script '{r.title}' with {len(r.sections)} sections "
+                    f"({r.total_estimated_duration:.0f}s)."
+                ),
+            )
+            storyboard = self._run_step(
+                name="Storyboard",
+                fn=lambda: self.storyboard_agent.run(script),
+                summary_fn=lambda r: f"Created {len(r.scenes)} scenes.",
+            )
 
         # ── Step 3: Voiceover ──────────────────────────────────────────
         audio_assets = self._run_step(
@@ -185,12 +172,10 @@ class SupervisorAgent:
         image_assets = self._run_step(
             name="Image Generator",
             fn=lambda: self.image_generator.run(storyboard),
-            summary_fn=lambda r: (
-                f"Generated {len(r)} images using backend '{r[0].backend}'."
-            ),
+            summary_fn=lambda r: f"Generated {len(r)} images via '{r[0].backend}'.",
         )
 
-        # ── Step 5: Build Production Package ──────────────────────────
+        # ── Step 5: Build package ──────────────────────────────────────
         package = ProductionPackage(
             storyboard=storyboard,
             audio_assets=audio_assets,
@@ -204,8 +189,7 @@ class SupervisorAgent:
             name="Video Assembler",
             fn=lambda: self.video_assembler.run(package),
             summary_fn=lambda r: (
-                f"Assembled {len(r.video_clips)} clips into final video: "
-                f"{r.final_video_path}"
+                f"Assembled {len(r.video_clips)} clips → {r.final_video_path}"
             ),
         )
 
@@ -213,9 +197,7 @@ class SupervisorAgent:
         package = self._run_step(
             name="Review",
             fn=lambda: self.review.run(package),
-            summary_fn=lambda r: (
-                f"Preview created: {r.preview_video_path}"
-            ),
+            summary_fn=lambda r: f"Preview: {r.preview_video_path}",
         )
 
         self._log.finished_at = datetime.utcnow()
@@ -225,15 +207,10 @@ class SupervisorAgent:
         return package
 
     # ------------------------------------------------------------------
-    # Step runner with retry + supervisor validation
+    # Step runner
     # ------------------------------------------------------------------
 
-    def _run_step(
-        self,
-        name: str,
-        fn,
-        summary_fn,
-    ) -> Any:
+    def _run_step(self, name: str, fn, summary_fn) -> Any:
         record = StepRecord(name=name)
         self._log.steps.append(record)
 
@@ -246,42 +223,30 @@ class SupervisorAgent:
             try:
                 result = fn()
                 record.finished_at = datetime.utcnow()
-
-                # Ask supervisor whether to proceed
                 summary = summary_fn(result)
                 decision, reason, _ = self._supervisor_decision(name, summary, error=None)
                 record.supervisor_decision = f"{decision}: {reason}"
 
-                if decision == "proceed":
-                    record.status = StepStatus.SUCCESS
-                    self._print_step_result(name, StepStatus.SUCCESS, reason, record.duration_seconds())
-                    return result
-
-                if decision == "skip":
-                    record.status = StepStatus.SKIPPED
-                    self._print_step_result(name, StepStatus.SKIPPED, reason, record.duration_seconds())
+                if decision in ("proceed", "skip"):
+                    record.status = StepStatus.SUCCESS if decision == "proceed" else StepStatus.SKIPPED
+                    self._print_step_result(name, record.status, reason, record.duration_seconds())
                     return result
 
                 if decision == "retry" and attempt <= self.MAX_RETRIES:
                     self._print_step_result(name, StepStatus.RETRYING, reason, record.duration_seconds())
                     continue
 
-                # abort or retries exhausted
                 record.status = StepStatus.FAILED
                 self._log.final_status = StepStatus.FAILED
                 self._save_log()
-                raise RuntimeError(
-                    f"Supervisor aborted pipeline at step '{name}': {reason}"
-                )
+                raise RuntimeError(f"Supervisor aborted pipeline at '{name}': {reason}")
 
             except RuntimeError:
                 raise
             except Exception as exc:
                 record.finished_at = datetime.utcnow()
                 record.error = traceback.format_exc()
-                error_summary = f"Exception: {exc}"
-
-                decision, reason, _ = self._supervisor_decision(name, summary="", error=error_summary)
+                decision, reason, _ = self._supervisor_decision(name, summary="", error=str(exc))
                 record.supervisor_decision = f"{decision}: {reason}"
 
                 if decision == "retry" and attempt <= self.MAX_RETRIES:
@@ -296,34 +261,34 @@ class SupervisorAgent:
                 record.status = StepStatus.FAILED
                 self._log.final_status = StepStatus.FAILED
                 self._save_log()
-                raise RuntimeError(
-                    f"Pipeline failed at step '{name}' after {attempt} attempt(s): {exc}"
-                ) from exc
+                raise RuntimeError(f"Pipeline failed at '{name}' after {attempt} attempt(s): {exc}") from exc
 
-        # Should not reach here
         raise RuntimeError(f"Step '{name}' exhausted all retries.")
 
     # ------------------------------------------------------------------
-    # Supervisor LLM call
+    # Supervisor LLM call (or auto-proceed if no key)
     # ------------------------------------------------------------------
 
     def _supervisor_decision(
         self, step_name: str, summary: str, error: Optional[str]
     ) -> tuple[str, str, str]:
+        if self._claude_client is None:
+            if error:
+                return "abort", f"Auto-abort: {error[:80]}", ""
+            return "proceed", "Auto-proceed (no Anthropic key).", ""
+
         if error:
             user_msg = (
                 f"Step '{step_name}' encountered an error.\n"
-                f"Error: {error}\n"
-                "Decide: retry, skip, or abort?"
+                f"Error: {error}\nDecide: retry, skip, or abort?"
             )
         else:
             user_msg = (
                 f"Step '{step_name}' completed.\n"
-                f"Summary: {summary}\n"
-                "Decide: proceed, retry, skip, or abort?"
+                f"Summary: {summary}\nDecide: proceed, retry, skip, or abort?"
             )
 
-        response = self.client.messages.create(
+        response = self._claude_client.messages.create(
             model=self.model,
             max_tokens=256,
             system=SUPERVISOR_SYSTEM_PROMPT,
@@ -334,11 +299,10 @@ class SupervisorAgent:
             data = json.loads(raw)
             return data["decision"], data["reason"], data.get("adjusted_instructions", "")
         except Exception:
-            # Fallback: if Claude returns unparseable output, proceed
             return "proceed", "Supervisor response unparseable; defaulting to proceed.", ""
 
     # ------------------------------------------------------------------
-    # Logging
+    # Logging & display
     # ------------------------------------------------------------------
 
     def _save_log(self) -> None:
@@ -346,11 +310,7 @@ class SupervisorAgent:
             self._log.pipeline_run_id = "unknown"
         log_path = self.final_dir / f"{self._log.pipeline_run_id}_supervisor_log.json"
         log_path.write_text(json.dumps(self._log.to_dict(), indent=2))
-        print(f"\n  [Supervisor] Audit log saved → {log_path}")
-
-    # ------------------------------------------------------------------
-    # Console output
-    # ------------------------------------------------------------------
+        print(f"\n  [Supervisor] Audit log → {log_path}")
 
     def _print_header(self, request: ScriptRequest) -> None:
         print("\n" + "═" * 62)
@@ -368,13 +328,13 @@ class SupervisorAgent:
         self, name: str, status: StepStatus, reason: str, duration: Optional[float]
     ) -> None:
         icons = {
-            StepStatus.SUCCESS: "✓",
-            StepStatus.SKIPPED: "↷",
+            StepStatus.SUCCESS:  "✓",
+            StepStatus.SKIPPED:  "↷",
             StepStatus.RETRYING: "↺",
-            StepStatus.FAILED: "✗",
+            StepStatus.FAILED:   "✗",
         }
         icon = icons.get(status, "?")
-        dur = f"  ({duration:.1f}s)" if duration else ""
+        dur  = f"  ({duration:.1f}s)" if duration else ""
         print(f"  {icon}  {name}: {reason}{dur}")
 
     def _print_summary(self, package: ProductionPackage) -> None:
@@ -384,7 +344,7 @@ class SupervisorAgent:
         print("═" * 62)
         for step in self._log.steps:
             icon = {"success": "✓", "skipped": "↷", "failed": "✗"}.get(step.status.value, "?")
-            dur = f"{step.duration_seconds():.1f}s" if step.duration_seconds() else "-"
+            dur  = f"{step.duration_seconds():.1f}s" if step.duration_seconds() else "-"
             print(f"  {icon}  {step.name:<22} {step.status.value:<10} {dur:>8}")
         print("─" * 62)
         print(f"  Scenes   : {len(package.storyboard.scenes)}")
